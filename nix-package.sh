@@ -1,45 +1,33 @@
 CONFIG_FILE="/etc/nixos/packages.nix"
 
-add_package() {
+modify_packages() {
     for PACKAGE in "$@"; do
-        if ! grep -q "$PACKAGE" "$CONFIG_FILE"; then
-            sed -i "s|\];|  $PACKAGE\n  ];|" "$CONFIG_FILE"
-            echo "Paquete '$PACKAGE' agregado."
+        if [[ "$PACKAGE" == +* ]]; then
+            PACKAGE_NAME="${PACKAGE:1}"
+            if ! grep -q "$PACKAGE_NAME" "$CONFIG_FILE"; then
+                sed -i "s|\];|  $PACKAGE_NAME\n  ];|" "$CONFIG_FILE"
+                echo "Paquete '$PACKAGE_NAME' agregado."
+            else
+                echo "El paquete '$PACKAGE_NAME' ya está en la lista."
+            fi
+        elif [[ "$PACKAGE" == -* ]]; then
+            PACKAGE_NAME="${PACKAGE:1}"
+            if grep -q "$PACKAGE_NAME" "$CONFIG_FILE"; then
+                sed -i "/$PACKAGE_NAME/d" "$CONFIG_FILE"
+                sed -ri '/^\s*$/d' "$CONFIG_FILE"
+                echo "Paquete '$PACKAGE_NAME' eliminado."
+            else
+                echo "El paquete '$PACKAGE_NAME' no está en la lista."
+            fi
         else
-            echo "El paquete '$PACKAGE' ya está en la lista."
+            echo "Formato no válido para '$PACKAGE'. Usa +paquete para agregar o -paquete para eliminar."
         fi
     done
 }
 
-remove_package() {
-    for PACKAGE in "$@"; do
-        if grep -q "$PACKAGE" "$CONFIG_FILE"; then
-            sed -i "/$PACKAGE/d" "$CONFIG_FILE"
-            sed -ri '/^\s*$/d' "$CONFIG_FILE"
-            echo "Paquete '$PACKAGE' eliminado."
-        else
-            echo "El paquete '$PACKAGE' no está en la lista."
-        fi
-    done
-}
-
-if [ $# -lt 2 ]; then
-    echo "Uso: $0 {add|remove} <paquete1> [paquete2] [paquete3] ..."
+if [ $# -lt 1 ]; then
+    echo "Uso: $0 [+paquete] [-paquete] ..."
     exit 1
 fi
 
-ACTION=$1
-shift
-
-case $ACTION in
-    add)
-        add_package "$@"
-        ;;
-    remove)
-        remove_package "$@"
-        ;;
-    *)
-        echo "Acción no válida. Usa 'add' o 'remove'."
-        exit 1
-        ;;
-esac
+modify_packages "$@" && ~/Programming/scripts/rebuild-nix.sh
